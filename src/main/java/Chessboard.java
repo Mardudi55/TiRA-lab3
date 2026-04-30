@@ -5,7 +5,6 @@ public class Chessboard {
     private int size;
     private Set<Position> knights = new HashSet<>();
 
-    // Pusty konstruktor wymagany przez Jackson (JSON)
     public Chessboard() {}
 
     public Chessboard(int size) {
