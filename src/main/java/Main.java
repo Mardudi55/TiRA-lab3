@@ -6,14 +6,12 @@ public class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
 
-        // Tymczasowe "zaślepki" (Stubs) dla brakującej logiki obcego zespołu
         AttackCalculator dummyCalculator = (pos, board) -> List.of(
                 new Position(pos.x() + 1, pos.y() + 2),
                 new Position(pos.x() + 2, pos.y() + 1)
         );
         AttackCounter dummyCounter = (pos, board) -> 2;
 
-        // Inicjalizacja edytora z domyślną szachownicą 8x8
         Chessboard board = new Chessboard(8);
         ChessboardEditor editor = new ChessboardEditor(board, dummyCalculator, dummyCounter);
 
@@ -29,10 +27,10 @@ public class Main {
             int choice = -1;
             try {
                 choice = scanner.nextInt();
-                scanner.nextLine(); // Czyszczenie bufora
+                scanner.nextLine();
             } catch (InputMismatchException e) {
                 System.out.println("Błąd: Wprowadź poprawną liczbę całkowitą!");
-                scanner.nextLine(); // Czyszczenie bufora po błędzie
+                scanner.nextLine();
                 continue;
             }
 
@@ -67,7 +65,7 @@ public class Main {
             int x = scanner.nextInt();
             System.out.print("Podaj współrzędną Y: ");
             int y = scanner.nextInt();
-            scanner.nextLine(); // Czyszczenie bufora
+            scanner.nextLine();
 
             editor.placeKnight(new Position(x, y));
 
