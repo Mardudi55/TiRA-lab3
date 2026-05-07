@@ -1,9 +1,9 @@
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
-import java.io.File;
+import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,78 +13,161 @@ import static org.mockito.ArgumentMatchers.eq;
 class ChessboardEditorTest {
 
     private Chessboard board;
+    private final InputStream originalIn = System.in;
+    private final PrintStream originalOut = System.out;
+    private ByteArrayOutputStream testOut;
 
     @BeforeEach
     void setUp() {
         board = new Chessboard(8);
+        testOut = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(testOut));
     }
 
-    @Test
-    void shouldSaveAndLoadBoardStateCorrectly() throws Exception {
-        AttackCalculator stubCalculator = new AttackCalculatorStub();
-        AttackCounter stubCounter = new AttackCounterStub();
-        ChessboardEditor editor = new ChessboardEditor(board, stubCalculator, stubCounter);
-
-        editor.placeKnight(new Position(4, 4));
-
-        File tempFile = File.createTempFile("chess_test", ".json");
-        tempFile.deleteOnExit();
-
-        editor.saveToFile(tempFile.getAbsolutePath());
-
-        ChessboardEditor newEditor = new ChessboardEditor(new Chessboard(8), stubCalculator, stubCounter);
-        newEditor.loadFromFile(tempFile.getAbsolutePath());
-
-        assertTrue(newEditor.getBoard().getKnights().contains(new Position(4, 4)));
-        assertEquals(8, newEditor.getBoard().getSize());
+    @AfterEach
+    void restoreStreams() {
+        System.setIn(originalIn);
+        System.setOut(originalOut);
     }
 
-    @Test
-    void shouldThrowExceptionOnInvalidFilePath() {
-        AttackCalculator mockCalculator = Mockito.mock(AttackCalculator.class);
-        AttackCounter mockCounter = Mockito.mock(AttackCounter.class);
-        ChessboardEditor editor = new ChessboardEditor(board, mockCalculator, mockCounter);
-
-        String invalidPath = "/katalog_ktory_nie_istnieje/plik.json";
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> editor.saveToFile(invalidPath));
-        assertTrue(exception.getMessage().contains("Błąd podczas zapisu pliku"));
+    private void provideInput(String data) {
+        System.setIn(new ByteArrayInputStream(data.getBytes()));
     }
 
-    @Test
-    void shouldThrowExceptionWhenPlacingKnightOutOfBounds() {
-        AttackCalculator mockCalculator = Mockito.mock(AttackCalculator.class);
-        AttackCounter mockCounter = Mockito.mock(AttackCounter.class);
-        ChessboardEditor editor = new ChessboardEditor(board, mockCalculator, mockCounter);
+    // =========================================================================
+    // 1. TESTY JEDNOSTKOWE (LOGIKA EDYTORA)
+    // =========================================================================
+    @Nested
+    @DisplayName("Unit Testy")
+    class UnitTests {
 
-        Position outOfBoundsPos = new Position(-1, 9);
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> editor.placeKnight(outOfBoundsPos));
+        @Test
+        @DisplayName("Unit: Zapis i odczyt stanu (użycie Stubów)")
+        void shouldSaveAndLoadBoardStateCorrectly() throws Exception {
+            AttackCalculator stubCalculator = new AttackCalculatorStub();
+            AttackCounter stubCounter = new AttackCounterStub();
+            ChessboardEditor editor = new ChessboardEditor(board, stubCalculator, stubCounter);
 
-        assertEquals("Pozycja poza szachownicą!", exception.getMessage());
+            editor.placeKnight(new Position(4, 4));
 
-        Mockito.verifyNoInteractions(mockCalculator, mockCounter);
+            File tempFile = File.createTempFile("chess_test", ".json");
+            tempFile.deleteOnExit();
+
+            editor.saveToFile(tempFile.getAbsolutePath());
+
+            ChessboardEditor newEditor = new ChessboardEditor(new Chessboard(8), stubCalculator, stubCounter);
+            newEditor.loadFromFile(tempFile.getAbsolutePath());
+
+            assertTrue(newEditor.getBoard().getKnights().contains(new Position(4, 4)));
+            assertEquals(8, newEditor.getBoard().getSize());
+        }
     }
 
-    @Test
-    void shouldThrowExceptionWhenPlacingKnightOnOccupiedField() {
-        AttackCalculator mockCalculator = Mockito.mock(AttackCalculator.class);
-        AttackCounter mockCounter = Mockito.mock(AttackCounter.class);
+    @Nested
+    @DisplayName("Testy Mockito (Błędy i Walidacja)")
+    class ChessboardEditorMockitoTest {
+        private AttackCalculator mockCalculator;
+        private AttackCounter mockCounter;
 
-        Mockito.when(mockCalculator.calculateAttack(any(), eq(board))).thenReturn(List.of());
-        Mockito.when(mockCounter.count(any(), eq(board))).thenReturn(0);
+        @BeforeEach
+        void setUp() {
+            mockCalculator = Mockito.mock(AttackCalculator.class);
+            mockCounter = Mockito.mock(AttackCounter.class);
+        }
 
-        ChessboardEditor editor = new ChessboardEditor(board, mockCalculator, mockCounter);
+        @Test
+        void shouldThrowExceptionOnInvalidFilePath() {
+            ChessboardEditor editor = new ChessboardEditor(board, mockCalculator, mockCounter);
+            String invalidPath = "/nieistniejacy_katalog/test.json";
 
-        Position pos = new Position(3, 3);
-        editor.placeKnight(pos);
+            assertThrows(RuntimeException.class, () -> editor.saveToFile(invalidPath));
+        }
 
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> editor.placeKnight(pos));
+        @Test
+        void shouldThrowExceptionWhenPlacingKnightOutOfBounds() {
+            ChessboardEditor editor = new ChessboardEditor(board, mockCalculator, mockCounter);
+            Position outOfBoundsPos = new Position(-1, 9);
 
-        assertEquals("Pole jest już zajęte!", exception.getMessage());
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                    () -> editor.placeKnight(outOfBoundsPos));
 
-        Mockito.verify(mockCalculator, Mockito.times(1)).calculateAttack(any(), eq(board));
+            assertEquals("Pozycja poza szachownicą!", exception.getMessage());
+            Mockito.verifyNoInteractions(mockCalculator, mockCounter);
+        }
+
+        @Test
+        void shouldThrowExceptionWhenPlacingKnightOnOccupiedField() {
+            Mockito.when(mockCalculator.calculateAttack(any(), eq(board))).thenReturn(List.of());
+            Mockito.when(mockCounter.count(any(), eq(board))).thenReturn(0);
+
+            ChessboardEditor editor = new ChessboardEditor(board, mockCalculator, mockCounter);
+            Position pos = new Position(3, 3);
+
+            editor.placeKnight(pos); // Raz okej
+
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                    () -> editor.placeKnight(pos)); // Drugi raz błąd
+
+            assertEquals("Pole jest już zajęte!", exception.getMessage());
+            Mockito.verify(mockCalculator, Mockito.times(1)).calculateAttack(any(), eq(board));
+        }
+    }
+
+    // =========================================================================
+    // 2. TESTY INTEGRACYJNE (SYMULACJA CLI / MAIN)
+    // =========================================================================
+    @Nested
+    @DisplayName("Testy CLI")
+    class MainTests {
+
+
+        @Test
+        @DisplayName("CLI: Symulacja pełnej interakcji użytkownika")
+        void shouldSimulateMainInteractionAndPlaceKnight() {
+            // Symulujemy: 1 (dodaj) -> 4 (x) -> 4 (y) -> 4 (pokaż stan) -> 0 (wyjdź)
+            provideInput("1\n4\n4\n4\n0\n");
+
+            Main.main(new String[]{});
+
+            String output = testOut.toString();
+            assertTrue(output.contains("Wstawiono skoczka"), "Brak info o wstawieniu");
+            assertTrue(output.contains("X=4, Y=4"), "Skoczek nie pojawił się w podsumowaniu stanu");
+        }
+
+        @Test
+        @DisplayName("CLI: Odporność na wpisanie liter zamiast liczb")
+        void shouldHandleInputMismatchInMain() {
+            // Symulujemy: "nie_liczba" -> 0 (wyjdź)
+            provideInput("nie_liczba\n0\n");
+
+            Main.main(new String[]{});
+
+            String output = testOut.toString();
+            assertTrue(output.contains("Błąd: Wprowadź poprawną liczbę całkowitą!"),
+                    "Program powinien obsłużyć błędny typ danych");
+        }
+
+        @Test
+        @DisplayName("CLI: Pełny cykl zapisu i odczytu przez menu")
+        void shouldSaveAndLoadViaMenuSystem() throws IOException {
+            Path tempFile = Files.createTempFile("main_save_test", ".json");
+            String path = tempFile.toAbsolutePath().toString();
+
+            // 1. Sesja zapisu: Dodaj skoczka (1,1) i zapisz
+            provideInput("1\n1\n1\n2\n" + path + "\n0\n");
+            Main.main(new String[]{});
+
+            // 2. Sesja odczytu: Wczytaj i sprawdź stan
+            testOut.reset();
+            provideInput("3\n" + path + "\n4\n0\n");
+            Main.main(new String[]{});
+
+            String output = testOut.toString();
+            assertTrue(output.contains("Pomyślnie załadowano planszę"), "Błąd ładowania");
+            assertTrue(output.contains("X=1, Y=1"), "Skoczek zniknął po przeładowaniu");
+
+            Files.deleteIfExists(tempFile);
+        }
     }
 }
