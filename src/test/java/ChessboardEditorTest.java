@@ -89,8 +89,7 @@ class ChessboardEditorTest {
             ChessboardEditor editor = new ChessboardEditor(board, mockCalculator, mockCounter);
             Position outOfBoundsPos = new Position(-1, 9);
 
-            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                    () -> editor.placeKnight(outOfBoundsPos));
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> editor.placeKnight(outOfBoundsPos));
 
             assertEquals("Pozycja poza szachownicą!", exception.getMessage());
             Mockito.verifyNoInteractions(mockCalculator, mockCounter);
@@ -104,10 +103,9 @@ class ChessboardEditorTest {
             ChessboardEditor editor = new ChessboardEditor(board, mockCalculator, mockCounter);
             Position pos = new Position(3, 3);
 
-            editor.placeKnight(pos); // Raz okej
+            editor.placeKnight(pos);
 
-            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                    () -> editor.placeKnight(pos)); // Drugi raz błąd
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> editor.placeKnight(pos));
 
             assertEquals("Pole jest już zajęte!", exception.getMessage());
             Mockito.verify(mockCalculator, Mockito.times(1)).calculateAttack(any(), eq(board));
@@ -125,7 +123,6 @@ class ChessboardEditorTest {
         @Test
         @DisplayName("CLI: Symulacja pełnej interakcji użytkownika")
         void shouldSimulateMainInteractionAndPlaceKnight() {
-            // Symulujemy: 1 (dodaj) -> 4 (x) -> 4 (y) -> 4 (pokaż stan) -> 0 (wyjdź)
             provideInput("1\n4\n4\n4\n0\n");
 
             Main.main(new String[]{});
@@ -138,14 +135,12 @@ class ChessboardEditorTest {
         @Test
         @DisplayName("CLI: Odporność na wpisanie liter zamiast liczb")
         void shouldHandleInputMismatchInMain() {
-            // Symulujemy: "nie_liczba" -> 0 (wyjdź)
             provideInput("nie_liczba\n0\n");
 
             Main.main(new String[]{});
 
             String output = testOut.toString();
-            assertTrue(output.contains("Błąd: Wprowadź poprawną liczbę całkowitą!"),
-                    "Program powinien obsłużyć błędny typ danych");
+            assertTrue(output.contains("Błąd: Wprowadź poprawną liczbę całkowitą!"), "Program powinien obsłużyć błędny typ danych");
         }
 
         @Test
@@ -154,11 +149,9 @@ class ChessboardEditorTest {
             Path tempFile = Files.createTempFile("main_save_test", ".json");
             String path = tempFile.toAbsolutePath().toString();
 
-            // 1. Sesja zapisu: Dodaj skoczka (1,1) i zapisz
             provideInput("1\n1\n1\n2\n" + path + "\n0\n");
             Main.main(new String[]{});
 
-            // 2. Sesja odczytu: Wczytaj i sprawdź stan
             testOut.reset();
             provideInput("3\n" + path + "\n4\n0\n");
             Main.main(new String[]{});
@@ -168,6 +161,39 @@ class ChessboardEditorTest {
             assertTrue(output.contains("X=1, Y=1"), "Skoczek zniknął po przeładowaniu");
 
             Files.deleteIfExists(tempFile);
+        }
+
+        @Test
+        @DisplayName("CLI: Litera zamiast współrzędnej X")
+        void shouldHandleGarbageInXCoordinate() {
+            provideInput("1\nX\n0\n");
+
+            Main.main(new String[]{});
+
+            String output = testOut.toString();
+            assertTrue(output.contains("Błąd: Współrzędne muszą być liczbami!"), "Program powinien złapać błąd typu danych wewnątrz metody handlePlaceKnight");
+        }
+
+        @Test
+        @DisplayName("CLI: Litera zamiast współrzędnej Y")
+        void shouldHandleGarbageInYCoordinate() {
+            provideInput("1\n4\nY\n0\n");
+
+            Main.main(new String[]{});
+
+            String output = testOut.toString();
+            assertTrue(output.contains("Błąd: Współrzędne muszą być liczbami!"), "Program powinien obsłużyć błąd nawet jeśli X był poprawny");
+        }
+
+        @Test
+        @DisplayName("CLI: Wybór nieistniejącej opcji menu")
+        void shouldHandleInvalidMenuChoice() {
+            provideInput("99\n0\n");
+
+            Main.main(new String[]{});
+
+            String output = testOut.toString();
+            assertTrue(output.contains("Nieznana opcja. Spróbuj ponownie."), "Program powinien zareagować na wybór spoza zakresu 0-4");
         }
     }
 }
