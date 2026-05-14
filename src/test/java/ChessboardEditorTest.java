@@ -1,4 +1,5 @@
 import org.junit.jupiter.api.*;
+import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
 
 import java.io.*;
@@ -35,7 +36,7 @@ class ChessboardEditorTest {
     }
 
     // =========================================================================
-    // 1. TESTY JEDNOSTKOWE (LOGIKA EDYTORA)
+    // TESTY JEDNOSTKOWE (LOGIKA EDYTORA)
     // =========================================================================
     @Nested
     @DisplayName("Unit Testy")
@@ -113,7 +114,7 @@ class ChessboardEditorTest {
     }
 
     // =========================================================================
-    // 2. TESTY INTEGRACYJNE (SYMULACJA CLI / MAIN)
+    // TESTY INTEGRACYJNE (SYMULACJA CLI / MAIN)
     // =========================================================================
     @Nested
     @DisplayName("Testy CLI")
@@ -123,13 +124,13 @@ class ChessboardEditorTest {
         @Test
         @DisplayName("CLI: Symulacja pełnej interakcji użytkownika")
         void shouldSimulateMainInteractionAndPlaceKnight() {
-            provideInput("1\n4\n4\n4\n0\n");
+            provideInput("1\n2\n6\n4\n0\n");
 
             Main.main(new String[]{});
 
             String output = testOut.toString();
             assertTrue(output.contains("Wstawiono skoczka"), "Brak info o wstawieniu");
-            assertTrue(output.contains("X=4, Y=4"), "Skoczek nie pojawił się w podsumowaniu stanu");
+            assertTrue(output.contains("X=2, Y=6"), "Skoczek nie pojawił się w podsumowaniu stanu");
         }
 
         @Test
@@ -194,6 +195,121 @@ class ChessboardEditorTest {
 
             String output = testOut.toString();
             assertTrue(output.contains("Nieznana opcja. Spróbuj ponownie."), "Program powinien zareagować na wybór spoza zakresu 0-4");
+        }
+    }
+
+    // =========================================================================
+    // TESTY INTEGRACYJNE Z MOCKITO (WERYFIKACJA INTERAKCJI Z ZALEŻNOŚCIAMI)
+    // =========================================================================
+    @Nested
+    @DisplayName("Testy CLI z Mockito (MockConstruction)")
+    class MainTestsMockito {
+
+        private final InputStream originalIn = System.in;
+        private final PrintStream originalOut = System.out;
+        private ByteArrayOutputStream testOut;
+
+        @BeforeEach
+        void setUp() {
+            testOut = new ByteArrayOutputStream();
+            System.setOut(new PrintStream(testOut));
+        }
+
+
+        private void provideInput(String data) {
+            System.setIn(new ByteArrayInputStream(data.getBytes()));
+        }
+
+        @Test
+        @DisplayName("CLI: Symulacja pełnej interakcji i weryfikacja wstawienia")
+        void shouldSimulateMainInteractionAndPlaceKnight() {
+            provideInput("1\n4\n4\n0\n");
+
+            try (MockedConstruction<ChessboardEditor> mocked = Mockito.mockConstruction(ChessboardEditor.class)) {
+                Main.main(new String[]{});
+
+                assertEquals(1, mocked.constructed().size(), "Powinien zostać stworzony tylko jeden edytor");
+                ChessboardEditor mockEditor = mocked.constructed().getFirst();
+
+                Mockito.verify(mockEditor, Mockito.times(1)).placeKnight(new Position(4, 4));
+            }
+        }
+
+        @Test
+        @DisplayName("CLI: Pełny cykl zapisu i odczytu przez menu")
+        void shouldSaveAndLoadViaMenuSystem() {
+            provideInput("2\nplansza.json\n3\nplansza.json\n0\n");
+
+            try (MockedConstruction<ChessboardEditor> mocked = Mockito.mockConstruction(ChessboardEditor.class)) {
+                Main.main(new String[]{});
+
+                ChessboardEditor mockEditor = mocked.constructed().getFirst();
+
+                Mockito.verify(mockEditor, Mockito.times(1)).saveToFile("plansza.json");
+                Mockito.verify(mockEditor, Mockito.times(1)).loadFromFile("plansza.json");
+            }
+        }
+
+        @Test
+        @DisplayName("CLI: Pokaż stan planszy (weryfikacja wywołania getBoard)")
+        void shouldShowBoardState() {
+            provideInput("4\n0\n");
+
+            try (MockedConstruction<ChessboardEditor> mocked = Mockito.mockConstruction(ChessboardEditor.class,
+                    (mock, context) -> Mockito.when(mock.getBoard()).thenReturn(new Chessboard(8)))) {
+
+                Main.main(new String[]{});
+
+                ChessboardEditor mockEditor = mocked.constructed().getFirst();
+
+                Mockito.verify(mockEditor, Mockito.atLeastOnce()).getBoard();
+            }
+        }
+
+        @Test
+        @DisplayName("CLI: Odporność na wpisanie liter zamiast liczb (główne menu)")
+        void shouldHandleInputMismatchInMain() {
+            provideInput("nie_liczba\n0\n");
+
+            try (MockedConstruction<ChessboardEditor> mocked = Mockito.mockConstruction(ChessboardEditor.class)) {
+                Main.main(new String[]{});
+
+                ChessboardEditor mockEditor = mocked.constructed().getFirst();
+
+                Mockito.verifyNoInteractions(mockEditor);
+
+                assertTrue(testOut.toString().contains("Błąd: Wprowadź poprawną liczbę całkowitą!"));
+            }
+        }
+
+        @Test
+        @DisplayName("CLI: Litera zamiast współrzędnej X")
+        void shouldHandleGarbageInXCoordinate() {
+            provideInput("1\nX\n0\n");
+
+            try (MockedConstruction<ChessboardEditor> mocked = Mockito.mockConstruction(ChessboardEditor.class)) {
+                Main.main(new String[]{});
+
+                ChessboardEditor mockEditor = mocked.constructed().getFirst();
+
+                Mockito.verify(mockEditor, Mockito.never()).placeKnight(any());
+                assertTrue(testOut.toString().contains("Błąd: Współrzędne muszą być liczbami!"));
+            }
+        }
+
+        @Test
+        @DisplayName("CLI: Wybór nieistniejącej opcji menu")
+        void shouldHandleInvalidMenuChoice() {
+            provideInput("99\n0\n");
+
+            try (MockedConstruction<ChessboardEditor> mocked = Mockito.mockConstruction(ChessboardEditor.class)) {
+                Main.main(new String[]{});
+
+                ChessboardEditor mockEditor = mocked.constructed().getFirst();
+
+                Mockito.verifyNoInteractions(mockEditor);
+                assertTrue(testOut.toString().contains("Nieznana opcja. Spróbuj ponownie."));
+            }
         }
     }
 }
