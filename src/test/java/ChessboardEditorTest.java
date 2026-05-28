@@ -3,6 +3,7 @@ import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
 
 import java.io.*;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -10,6 +11,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
 
 class ChessboardEditorTest {
 
@@ -66,7 +69,7 @@ class ChessboardEditorTest {
     }
 
     @Nested
-    @DisplayName("Testy Mockito (Błędy i Walidacja)")
+    @DisplayName("Unit Testy Mockito (Błędy i Walidacja)")
     class ChessboardEditorMockitoTest {
         private AttackCalculator mockCalculator;
         private AttackCounter mockCounter;
@@ -144,24 +147,28 @@ class ChessboardEditorTest {
             assertTrue(output.contains("Błąd: Wprowadź poprawną liczbę całkowitą!"), "Program powinien obsłużyć błędny typ danych");
         }
 
+
+
         @Test
-        @DisplayName("CLI: Pełny cykl zapisu i odczytu przez menu")
+        @DisplayName("CLI: Pełny cykl zapisu i odczytu przez menu (w pamięci)")
         void shouldSaveAndLoadViaMenuSystem() throws IOException {
-            Path tempFile = Files.createTempFile("main_save_test", ".json");
-            String path = tempFile.toAbsolutePath().toString();
+            try (FileSystem fs = Jimfs.newFileSystem(Configuration.unix())) {
+                Path tempFile = fs.getPath("/main_save_test.json");
+                String path = tempFile.toAbsolutePath().toString();
 
-            provideInput("1\n1\n1\n2\n" + path + "\n0\n");
-            Main.main(new String[]{});
+                provideInput("1\n1\n1\n2\n" + path + "\n0\n");
+                Main.main(new String[]{});
 
-            testOut.reset();
-            provideInput("3\n" + path + "\n4\n0\n");
-            Main.main(new String[]{});
 
-            String output = testOut.toString();
-            assertTrue(output.contains("Pomyślnie załadowano planszę"), "Błąd ładowania");
-            assertTrue(output.contains("X=1, Y=1"), "Skoczek zniknął po przeładowaniu");
+                testOut.reset();
+                provideInput("3\n" + path + "\n4\n0\n");
+                Main.main(new String[]{});
 
-            Files.deleteIfExists(tempFile);
+                String output = testOut.toString();
+                assertTrue(output.contains("Pomyślnie załadowano planszę"), "Błąd ładowania");
+                assertTrue(output.contains("X=1, Y=1"), "Skoczek zniknął po przeładowaniu");
+
+            }
         }
 
         @Test
