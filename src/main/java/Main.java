@@ -1,11 +1,15 @@
-import java.util.InputMismatchException;
 import java.util.List;
-import java.util.Scanner;
 
 public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
+    public static BoardStorage storage = new RealBoardStorage();
 
+    private static InputReader inputReader = new ConsoleInputReader();
+
+    public static void setInputReader(InputReader reader) {
+        inputReader = reader;
+    }
+
+    public static void main(String[] args) {
         AttackCalculator dummyCalculator = (pos, board) -> List.of(
                 new Position(pos.x() + 1, pos.y() + 2),
                 new Position(pos.x() + 2, pos.y() + 1)
@@ -24,20 +28,24 @@ public class Main {
             printMenu();
             System.out.print("\nWybierz opcję: ");
 
-            int choice = -1;
+            String input = inputReader.read();
+            if (input == null) {
+                System.out.println("Koniec strumienia wejściowego. Awaryjne zamykanie.");
+                break;
+            }
+
+            int choice;
             try {
-                choice = scanner.nextInt();
-                scanner.nextLine();
-            } catch (InputMismatchException e) {
+                choice = Integer.parseInt(input);
+            } catch (NumberFormatException e) {
                 System.out.println("Błąd: Wprowadź poprawną liczbę całkowitą!");
-                scanner.nextLine();
                 continue;
             }
 
             switch (choice) {
-                case 1 -> handlePlaceKnight(scanner, editor);
-                case 2 -> handleSaveToFile(scanner, editor);
-                case 3 -> handleLoadFromFile(scanner, editor);
+                case 1 -> handlePlaceKnight(editor);
+                case 2 -> handleSaveToFile(editor);
+                case 3 -> handleLoadFromFile(editor);
                 case 4 -> handleShowBoardState(editor);
                 case 0 -> {
                     System.out.println("Zamykanie programu. Do widzenia!");
@@ -46,8 +54,6 @@ public class Main {
                 default -> System.out.println("Nieznana opcja. Spróbuj ponownie.");
             }
         }
-
-        scanner.close();
     }
 
     private static void printMenu() {
@@ -59,19 +65,22 @@ public class Main {
         System.out.println("0. Zakończ program");
     }
 
-    private static void handlePlaceKnight(Scanner scanner, ChessboardEditor editor) {
+    private static void handlePlaceKnight(ChessboardEditor editor) {
         try {
             System.out.print("Podaj współrzędną X: ");
-            int x = scanner.nextInt();
+            String inputX = inputReader.read();
+            if (inputX == null) return;
+            int x = Integer.parseInt(inputX);
+
             System.out.print("Podaj współrzędną Y: ");
-            int y = scanner.nextInt();
-            scanner.nextLine();
+            String inputY = inputReader.read();
+            if (inputY == null) return;
+            int y = Integer.parseInt(inputY);
 
             editor.placeKnight(new Position(x, y));
 
-        } catch (InputMismatchException e) {
+        } catch (NumberFormatException e) {
             System.out.println("Błąd: Współrzędne muszą być liczbami!");
-            scanner.nextLine();
         } catch (IllegalArgumentException e) {
             System.out.println("Błąd logiki: " + e.getMessage());
         } catch (Exception e) {
@@ -79,9 +88,10 @@ public class Main {
         }
     }
 
-    private static void handleSaveToFile(Scanner scanner, ChessboardEditor editor) {
+    private static void handleSaveToFile(ChessboardEditor editor) {
         System.out.print("Podaj ścieżkę do pliku (np. plansza.json): ");
-        String path = scanner.nextLine();
+        String path = inputReader.read();
+        if (path == null) return;
         try {
             editor.saveToFile(path);
             System.out.println("Pomyślnie zapisano planszę do: " + path);
@@ -90,9 +100,10 @@ public class Main {
         }
     }
 
-    private static void handleLoadFromFile(Scanner scanner, ChessboardEditor editor) {
+    private static void handleLoadFromFile(ChessboardEditor editor) {
         System.out.print("Podaj ścieżkę do pliku (np. plansza.json): ");
-        String path = scanner.nextLine();
+        String path = inputReader.read();
+        if (path == null) return;
         try {
             editor.loadFromFile(path);
             System.out.println("Pomyślnie załadowano planszę z pliku!");

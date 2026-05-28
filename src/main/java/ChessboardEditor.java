@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 public class ChessboardEditor {
-    private Chessboard board;
+    protected Chessboard board;
     private final AttackCalculator calculator;
     private final AttackCounter counter;
     private final ObjectMapper mapper = new ObjectMapper();
